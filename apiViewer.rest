@@ -1,0 +1,9 @@
+POST http://localhost:3004/register-bot
+Content-Type: application/json
+
+{
+    "clientID": "6",
+    "botName": "koko",
+    "port": "3010",
+    "viewer": "eagle"
+}
