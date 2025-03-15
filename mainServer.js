@@ -1,3 +1,6 @@
+require('dotenv').config({ path: './.env.main-server' });
+const readline = require('readline');
+const logger = require('./controlProperties/logger')
 const express = require("express");
 const { createProxyMiddleware } = require("http-proxy-middleware");
 const cors = require("cors");
@@ -10,19 +13,73 @@ const WebSocket = require('ws');
 const net = require('net');
 const EventEmitter = require("events");
 
+logger.setFolderFilePath(process.env.APP_SLOG)
+logger.setSilentMode(true);
 
 process.setMaxListeners(15);
 
 //el_L,R,E
 // const authCR = require("./accountController/authentication");
 
+// const handleCommand = (command) => {
+//   const args = command.trim().split(/\s+/);
+//   const cmd = args.shift().toLowerCase(); // Ambil perintah pertama sebagai command
+
+//   switch (cmd) {
+//       case 'help':
+//           console.log('Daftar perintah yang tersedia:');
+//           console.log('- help     : Menampilkan daftar perintah');
+//           console.log('- info msg : Menulis log info');
+//           console.log('- warn msg : Menulis log peringatan');
+//           console.log('- error msg: Menulis log error');
+//           console.log('- debug msg: Menulis log debug');
+//           console.log('- exit     : Menutup aplikasi');
+//           break;
+      
+//       case 'info':
+//           writeLog('INFO', args.join(' '));
+//           break;
+
+//       case 'warn':
+//           writeLog('WARN', args.join(' '));
+//           break;
+
+//       case 'error':
+//           writeLog('ERROR', args.join(' '));
+//           break;
+
+//       case 'debug':
+//           writeLog('DEBUG', args.join(' '));
+//           break;
+
+//       case 'exit':
+//           console.log('Menutup aplikasi...');
+//           process.exit(0);
+//           break;
+
+//       default:
+//           console.log(`Perintah tidak dikenali: ${cmd}. Ketik "help" untuk melihat daftar perintah.`);
+//   }
+// };
+
+// // Setup input dari console untuk menerima perintah user
+// const rl = readline.createInterface({
+//   input: process.stdin,
+//   output: process.stdout
+// })
+
+// rl.on('line', handleCommand);
+
+
+// console.log(process.env.mainAppPort)
+
 // Setup express app
 const app = express();
-const PORT = 3002;
+const PORT = process.env.MAIN_APP_PORT;
 
 // ini adalaah side server untuk viewer Bot
 const sideApp = express()
-const SPort = 3004;
+const SPORT = process.env.VIEW_APP_PORT;
 
 const serverV = http.createServer(sideApp)
 // const ios = new Server(serverV, {
@@ -223,8 +280,11 @@ serverV.on("upgrade", (req, socket, head) => {
 //   }
 // });
 
-serverV.listen(SPort, () => {
-  console.log(`Server running on http://localhost:${SPort}`);
+let sideServerStatus = "none"
+serverV.listen(SPORT, () => {
+  // console.log(`Server running on http://localhost:${SPORT}`);
+  sideServerStatus = `side Server running on http://localhost:${SPORT}`
+  logger.info("side server berhasil berjalan di ", `http://localhost:${SPORT}`)
 });
 // ### pembatas side app
 
@@ -543,6 +603,8 @@ server.listen(PORT, () => {
   flags += "=====================================";
   console.log(flags);
   console.log(`main Server running on http://localhost:${PORT}`);
+  logger.info("main server berhasil berjalan di ", `http://localhost:${PORT}`)
+  console.log(sideServerStatus)
   // console.log()
 });
 

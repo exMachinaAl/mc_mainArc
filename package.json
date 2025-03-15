@@ -4,7 +4,10 @@
   "main": "mainServer.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon run dev"
+    "predev": "node controlProperties/index.js",
+    "dev": "nodemon run dev",
+    "prestart": "node controlProperties/index.js",
+    "start": "node mainServer.js"
   },
   "keywords": [],
   "author": "mobius Al",
