@@ -1,138 +1,357 @@
 const fs = require('fs');
 const path = require('path');
-const readline = require('readline');
 
-let outputDir = path.join(__dirname, 'logs'); // Folder log default
-let logStream = null;
-let logFilePath = null;
-const loggerOptions = { silent: false };
+const createLogger = () => {
+    let outputDir = path.join(__dirname, 'logs'); // Folder log default
+    let logStream = null;
+    let logFilePath = null;
+    let customLogFileName = "defaultLog";
+    let silentMode = false;
 
-// Fungsi untuk mendapatkan timestamp
-const getTimeStamp = () => new Date().toLocaleTimeString('en-GB', { hour12: false });
+    // **Fungsi mendapatkan timestamp**
+    const getTimeStamp = () => new Date().toLocaleTimeString('en-GB', { hour12: false });
 
-// Fungsi untuk mendapatkan nama file log berdasarkan waktu
-const getLogFileName = () => {
-    const now = new Date();
-    const pad = (num) => num.toString().padStart(2, '0');
+    // **Fungsi mendapatkan nama file log berdasarkan waktu**
+    const getLogFileName = () => {
+        const now = new Date();
+        const pad = (num) => num.toString().padStart(2, '0');
 
-    return `log_${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_` +
-           `${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}.txt`;
-};
+        return `${customLogFileName}_${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_` +
+               `${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}.txt`;
+    };
 
-// **Fungsi untuk membuat/mengganti file log**
-const createLogFile = () => {
-    if (logStream) {
-        logStream.end(); // Tutup stream lama sebelum membuat yang baru
-    }
-
-    if (!fs.existsSync(outputDir)) {
-        fs.mkdirSync(outputDir, { recursive: true });
-    }
-
-    logFilePath = path.join(outputDir, getLogFileName());
-    logStream = fs.createWriteStream(logFilePath, { flags: 'a', autoClose: false });
-
-    writeLog('SYSTEM', '<<< --------------------  Create File -------------------- >>>');
-};
-
-// **Fungsi menulis log ke file dan console**
-const writeLog = (level, ...messages) => {
-    if (!logStream) return console.error('[Logger] Error: Log stream tidak tersedia!');
-
-    const logMessage = `${getTimeStamp()} ${level} ${messages.join(' ')}`;
-
-    logStream.write(logMessage + '\n');
-
-    if (!loggerOptions.silent) {
-        console.log(logMessage);
-    }
-};
-
-// **Fungsi untuk mengubah folder log dan membuat ulang file**
-const setFolderFilePath = (folderPath) => {
-    outputDir = path.resolve(folderPath);
-    createLogFile(); // Buat ulang file log di folder baru
-};
-
-// **Fungsi untuk mengaktifkan atau menonaktifkan console log**
-const setSilentMode = (silent = true) => {
-    loggerOptions.silent = silent;
-};
-
-// **Menutup log dengan benar sebelum keluar**
-const closeLog = () => {
-    return new Promise((resolve) => {
+    // **Membuat atau memperbarui file log**
+    const createLogFile = () => {
         if (logStream) {
-            writeLog('SYSTEM', '<<< -------------------- End Log -------------------- >>>');
-            logStream.end(() => resolve());
-        } else {
-            resolve();
+            logStream.end(); // Tutup stream lama
         }
+
+        if (!fs.existsSync(outputDir)) {
+            fs.mkdirSync(outputDir, { recursive: true });
+        }
+
+        logFilePath = path.join(outputDir, getLogFileName());
+        logStream = fs.createWriteStream(logFilePath, { flags: 'a', autoClose: false });
+
+        writeLog('SYSTEM', '<<< --------------------  Create File -------------------- >>>');
+    };
+
+    // **Menulis log ke file dan console**
+    const writeLog = (level, ...messages) => {
+        if (!logStream) return console.error('[Logger] Error: Log stream tidak tersedia!');
+
+        const logMessage = `${getTimeStamp()} ${level} ${messages.join(' ')}`;
+
+        logStream.write(logMessage + '\n');
+
+        if (!silentMode) {
+            console.log(logMessage);
+        }
+    };
+
+    // **Mengatur folder log**
+    const setFolderFilePath = (folderPath) => {
+        outputDir = path.resolve(folderPath);
+        // createLogFile();
+        return logger; // Chain function
+    };
+
+    // **Mengatur nama file log kustom**
+    const setCustomFile = (fileName) => {
+        customLogFileName = fileName;
+        // createLogFile();
+        return logger; // Chain function
+    };
+
+    // **Menonaktifkan atau mengaktifkan log di console**
+    const setSilentMode = (silent = true) => {
+        silentMode = silent;
+        return logger; // Chain function
+    };
+
+    // **Menutup file log dengan aman**
+    const closeLog = () => {
+        return new Promise((resolve) => {
+            if (logStream) {
+                writeLog('SYSTEM', '<<< -------------------- End Log -------------------- >>>');
+                logStream.end(() => resolve());
+            } else {
+                resolve();
+            }
+        });
+    };
+
+    const startLog = () => createLogFile();
+
+    // **Logger yang bisa dipakai berulang kali (Chainable)**
+    const logger = {
+        info: (...msg) => { writeLog('INFO', ...msg); return logger; },
+        error: (...msg) => { writeLog('ERROR', ...msg); return logger; },
+        debug: (...msg) => { writeLog('DEBUG', ...msg); return logger; },
+        warn: (...msg) => { writeLog('WARN', ...msg); return logger; },
+        setSilentMode,
+        setFolderFilePath,
+        setCustomFile,
+        startLog,
+        closeLog
+    };
+
+    // **Inisialisasi log pertama kali**
+    // createLogFile();
+    process.on('SIGINT', async () => {
+        await closeLog();
+        console.log('Menutup aplikasi...');
+        console.log("tersimpan")
+        process.exit(0);
+    }); 
+
+    process.on('exit', async () => {
+        await closeLog();
     });
+
+    return logger;
 };
 
-// **Fungsi untuk menangani input perintah dari terminal**
-const handleCommand = (command) => {
-    const args = command.trim().split(/\s+/);
-    const cmd = args.shift().toLowerCase();
+module.exports = createLogger;
 
-    switch (cmd) {
-        case 'help':
-            console.log('Daftar perintah: help, info <msg>, warn <msg>, error <msg>, debug <msg>, exit');
-            break;
-        case 'info':
-            writeLog('INFO', args.join(' '));
-            break;
-        case 'warn':
-            writeLog('WARN', args.join(' '));
-            break;
-        case 'error':
-            writeLog('ERROR', args.join(' '));
-            break;
-        case 'debug':
-            writeLog('DEBUG', args.join(' '));
-            break;
-        case 'exit':
-            console.log('Menutup logger...');
-            closeLog().then(() => process.exit(0));
-            break;
-        default:
-            console.log(`Perintah tidak dikenali: ${cmd}. Ketik "help" untuk daftar perintah.`);
-    }
-};
 
-// **Baca input dari terminal**
-const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout
-});
 
-console.log('Logger aktif! Ketik "help" untuk melihat daftar perintah.');
-rl.on('line', handleCommand);
 
-// **Pastikan log ditutup saat program keluar**
-process.on('SIGINT', async () => {
-    await closeLog();
-    console.log('Menutup aplikasi...');
-    console.log("tersimpan")
-    process.exit(0);
-});
 
-process.on('exit', async () => {
-    await closeLog();
-});
 
-// **Inisialisasi log pertama kali**
-// createLogFile();
 
-module.exports = {
-    info: (...msg) => writeLog('INFO', ...msg),
-    error: (...msg) => writeLog('ERROR', ...msg),
-    debug: (...msg) => writeLog('DEBUG', ...msg),
-    warn: (...msg) => writeLog('WARN', ...msg),
-    setSilentMode,
-    setFolderFilePath
-};
+
+
+
+
+
+
+
+
+
+
+// const fs = require('fs');
+// const path = require('path');
+
+// class Logger {
+//     constructor(folderPath = 'logs', fileName = 'defaultLog') {
+//         this.outputDir = path.resolve(folderPath);
+//         this.customLogFileName = fileName;
+//         this.logStream = null;
+//         this.logFilePath = null;
+//         this.silent = false;
+//         this.createLogFile();
+//     }
+
+//     getTimeStamp() {
+//         return new Date().toLocaleTimeString('en-GB', { hour12: false });
+//     }
+
+//     getLogFileName() {
+//         const now = new Date();
+//         const pad = (num) => num.toString().padStart(2, '0');
+
+//         return `${this.customLogFileName}_${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_` +
+//                `${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}.txt`;
+//     }
+
+//     createLogFile() {
+//         if (this.logStream) {
+//             this.logStream.end(); // Tutup stream lama sebelum membuat yang baru
+//         }
+
+//         if (!fs.existsSync(this.outputDir)) {
+//             fs.mkdirSync(this.outputDir, { recursive: true });
+//         }
+
+//         this.logFilePath = path.join(this.outputDir, this.getLogFileName());
+//         this.logStream = fs.createWriteStream(this.logFilePath, { flags: 'a', autoClose: false });
+
+//         this.writeLog('SYSTEM', '<<< -------------------- Create File -------------------- >>>');
+//     }
+
+//     writeLog(level, ...messages) {
+//         if (!this.logStream) return console.error('[Logger] Error: Log stream tidak tersedia!');
+
+//         const logMessage = `${this.getTimeStamp()} ${level} ${messages.join(' ')}`;
+//         this.logStream.write(logMessage + '\n');
+
+//         if (!this.silent) {
+//             console.log(logMessage);
+//         }
+//     }
+
+//     setFolderFilePath(folderPath) {
+//         this.outputDir = path.resolve(folderPath);
+//         this.createLogFile();
+//     }
+
+//     setCustomFile(fileName) {
+//         this.customLogFileName = fileName;
+//         this.createLogFile();
+//     }
+
+//     setSilentMode(silent = true) {
+//         this.silent = silent;
+//     }
+
+//     closeLog() {
+//         return new Promise((resolve) => {
+//             if (this.logStream) {
+//                 this.writeLog('SYSTEM', '<<< -------------------- End Log -------------------- >>>');
+//                 this.logStream.end(() => resolve());
+//             } else {
+//                 resolve();
+//             }
+//         });
+//     }
+// }
+
+// // **Pastikan log ditutup saat program keluar**
+// process.on('SIGINT', async () => {
+//     console.log('Menutup aplikasi...');
+//     process.exit(0);
+// });
+
+// module.exports = Logger;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// const fs = require('fs');
+// const path = require('path');
+// const readline = require('readline');
+
+// let outputDir = path.join(__dirname, 'logs'); // Folder log default
+// let logStream = null;
+// let logFilePath = null;
+// let customLogFileName = null;
+// const loggerOptions = { silent: false };
+
+// // Fungsi untuk mendapatkan timestamp
+// const getTimeStamp = () => new Date().toLocaleTimeString('en-GB', { hour12: false });
+
+// // Fungsi untuk mendapatkan nama file log berdasarkan waktu
+// const getLogFileName = () => {
+//     if (!customLogFileName) {
+//         customLogFileName = "defaultLog";
+//     }
+
+//     const now = new Date();
+//     const pad = (num) => num.toString().padStart(2, '0');
+
+//     return `${customLogFileName}_${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_` +
+//            `${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}.txt`;
+// };
+
+// // **Fungsi untuk membuat/mengganti file log**
+// const createLogFile = () => {
+//     if (logStream) {
+//         logStream.end(); // Tutup stream lama sebelum membuat yang baru
+//     }
+
+//     if (!fs.existsSync(outputDir)) {
+//         fs.mkdirSync(outputDir, { recursive: true });
+//     }
+
+//     logFilePath = path.join(outputDir, getLogFileName());
+//     logStream = fs.createWriteStream(logFilePath, { flags: 'a', autoClose: false });
+
+//     writeLog('SYSTEM', '<<< --------------------  Create File -------------------- >>>');
+// };
+
+// // **Fungsi menulis log ke file dan console**
+// const writeLog = (level, ...messages) => {
+//     if (!logStream) return console.error('[Logger] Error: Log stream tidak tersedia!');
+
+//     const logMessage = `${getTimeStamp()} ${level} ${messages.join(' ')}`;
+
+//     logStream.write(logMessage + '\n');
+
+//     if (!loggerOptions.silent) {
+//         console.log(logMessage);
+//     }
+// };
+
+// // **Fungsi untuk mengubah folder log dan membuat ulang file**
+// const setFolderFilePath = (folderPath) => {
+//     outputDir = path.resolve(folderPath);
+//     // createLogFile(); // Buat ulang file log di folder baru
+// };
+
+// const setCustomFile = (fileName) => {
+//     customLogFileName = fileName;
+//     createLogFile();
+// }
+
+// const start = () => {
+//     createLogFile()
+// }
+
+// // **Fungsi untuk mengaktifkan atau menonaktifkan console log**
+// const setSilentMode = (silent = true) => {
+//     loggerOptions.silent = silent;
+// };
+
+// // **Menutup log dengan benar sebelum keluar**
+// const closeLog = () => {
+//     return new Promise((resolve) => {
+//         if (logStream) {
+//             writeLog('SYSTEM', '<<< -------------------- End Log -------------------- >>>');
+//             logStream.end(() => resolve());
+//         } else {
+//             resolve();
+//         }
+//     });
+// };
+
+// // **Pastikan log ditutup saat program keluar**
+// process.on('SIGINT', async () => {
+//     await closeLog();
+//     console.log('Menutup aplikasi...');
+//     console.log("tersimpan")
+//     process.exit(0);
+// });
+
+// process.on('exit', async () => {
+//     await closeLog();
+// });
+
+// // **Inisialisasi log pertama kali**
+// // createLogFile();
+
+// module.exports = {
+//     info: (...msg) => writeLog('INFO', ...msg),
+//     error: (...msg) => writeLog('ERROR', ...msg),
+//     debug: (...msg) => writeLog('DEBUG', ...msg),
+//     warn: (...msg) => writeLog('WARN', ...msg),
+//     setSilentMode,
+//     setFolderFilePath,
+//     setCustomFile,
+//     start
+// };
+
+
+
+
+
+
+
+
 
 
 

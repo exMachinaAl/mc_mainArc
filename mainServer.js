@@ -1,6 +1,6 @@
 require('dotenv').config({ path: './.env.main-server' });
 const readline = require('readline');
-const logger = require('./controlProperties/logger')
+const createLogger = require('./controlProperties/logger')
 const express = require("express");
 const { createProxyMiddleware } = require("http-proxy-middleware");
 const cors = require("cors");
@@ -13,8 +13,16 @@ const WebSocket = require('ws');
 const net = require('net');
 const EventEmitter = require("events");
 
-logger.setFolderFilePath(process.env.APP_SLOG)
-logger.setSilentMode(true);
+const logInfo = createLogger()
+const logDebug = createLogger()
+const logReactDebug = createLogger()
+
+logInfo.setFolderFilePath(process.env.APP_SLOG).setSilentMode(true).setCustomFile("Info").startLog()
+logDebug.setFolderFilePath(process.env.APP_SLOG).setSilentMode(true).setCustomFile("Debug").startLog()
+logReactDebug.setFolderFilePath(process.env.REACT_LOG_DEBUG).setSilentMode(true).setCustomFile("ReactDebug").startLog()
+
+// logInfo.warn("something is warning th mode")
+// logDebug.debug("something is bug th mode")
 
 process.setMaxListeners(15);
 
@@ -284,7 +292,7 @@ let sideServerStatus = "none"
 serverV.listen(SPORT, () => {
   // console.log(`Server running on http://localhost:${SPORT}`);
   sideServerStatus = `side Server running on http://localhost:${SPORT}`
-  logger.info("side server berhasil berjalan di ", `http://localhost:${SPORT}`)
+  // logInfo.writeLog("INFO", "side server berhasil berjalan di ", `http://localhost:${SPORT}`)
 });
 // ### pembatas side app
 
@@ -406,6 +414,47 @@ app.post("/upload/userProfile", upload.single("image"), (req, res) => {
 
 // API untuk mengambil gambar
 app.use("/uploads", express.static("uploads"));
+
+// API for react control log
+app.post("/api/reactLog", (req, res) => {
+  const { level, message } = req.body;
+
+  let levelC = level.toUpperCase()
+
+  switch(levelC) {
+    case 'INFO':
+      logReactDebug.info(message);
+      break;
+    case 'ERROR':
+      logReactDebug.error(message);
+      break;
+    case 'WARN':
+      logReactDebug.warn(message)
+      break;
+    case 'DEBUG':
+      logReactDebug.debug(message)
+      break;
+    default:
+      res.json({ status: 400, message: "error cannot take log, or you mispeled"})
+      break;
+  }
+
+  res.sendStatus(200)
+
+  // console.log("log from react", `${level}: ${message}`)
+})
+
+
+
+
+
+
+
+
+
+
+
+
 
 // api socket controller <Server>
 const clients = {};
@@ -603,7 +652,7 @@ server.listen(PORT, () => {
   flags += "=====================================";
   console.log(flags);
   console.log(`main Server running on http://localhost:${PORT}`);
-  logger.info("main server berhasil berjalan di ", `http://localhost:${PORT}`)
+  // logInfo.writeLog("INFO", "main server berhasil berjalan di ", `http://localhost:${PORT}`)
   console.log(sideServerStatus)
   // console.log()
 });
