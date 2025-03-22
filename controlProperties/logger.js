@@ -7,9 +7,28 @@ const createLogger = () => {
     let logFilePath = null;
     let customLogFileName = "defaultLog";
     let silentMode = false;
+    let lineLogCode = null
 
     // **Fungsi mendapatkan timestamp**
     const getTimeStamp = () => new Date().toLocaleTimeString('en-GB', { hour12: false });
+
+    //GET exact line of log
+    const getLineCode = () => {
+        const err = new Error();
+        const stackLine = err.stack.split("\n")[2]; // Baris ke-2 mengandung informasi lokasi
+        const match = stackLine.match(/:(\d+):\d+\)?$/); // Ambil nomor baris
+        
+        const regex = /([^\\\/]+\.js)/;
+        const STL = err.stack.split("\n")[2]
+        const matchFName = STL.match(regex);
+        
+        const lineResult =  ":" + (match ? match[1] : null);
+
+        lineLogCode = (matchFName ? matchFName[1] : null) + lineResult;
+
+        // console.log(err)
+        return logger;
+    }
 
     // **Fungsi mendapatkan nama file log berdasarkan waktu**
     const getLogFileName = () => {
@@ -40,7 +59,7 @@ const createLogger = () => {
     const writeLog = (level, ...messages) => {
         if (!logStream) return console.error('[Logger] Error: Log stream tidak tersedia!');
 
-        const logMessage = `${getTimeStamp()} ${level} ${messages.join(' ')}`;
+        const logMessage = `${getTimeStamp()} [${level}] [${lineLogCode}] ${messages.join(' ')}`;
 
         logStream.write(logMessage + '\n');
 
@@ -92,6 +111,7 @@ const createLogger = () => {
         setSilentMode,
         setFolderFilePath,
         setCustomFile,
+        getLineCode,
         startLog,
         closeLog
     };

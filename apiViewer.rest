@@ -7,3 +7,39 @@ Content-Type: application/json
     "port": "3010",
     "viewer": "eagle"
 }
+
+###
+GET http://localhost:3002/login/api/clientConnected
+###
+POST http://localhost:3002/login/api/login
+Content-Type: application/json
+
+{
+    "username": "mobius",
+    "password": "hacker"
+}
+
+###
+POST http://localhost:3001/api/login
+Content-Type: application/json
+
+{
+    "username": "mobius",
+    "password": "hacker"
+}
+
+### register
+POST http://localhost:3002/login/api/register
+Content-Type: application/json
+
+{
+    "username": "meq",
+    "password": "hack"
+}
+
+### dashboard
+GET http://localhost:3002/login/api/dashboard
+
+{
+    "headers": "bearer: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOjYsInVzZXJuYW1lIjoibW9iaXVzIiwiaWF0IjoxNzM4MjU1ODI3LCJleHAiOjE3MzgyNTk0Mjd9.pt5Z-ATcQbJ0Fm7kBBrFg1uoL7ptHGgYCoodEDJm154"
+}

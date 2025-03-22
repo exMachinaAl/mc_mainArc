@@ -2,7 +2,7 @@ require('dotenv').config({ path: './.env.main-server' });
 const readline = require('readline');
 const createLogger = require('./controlProperties/logger')
 const express = require("express");
-const { createProxyMiddleware } = require("http-proxy-middleware");
+const { createProxyMiddleware, legacyCreateProxyMiddleware } = require("http-proxy-middleware");
 const cors = require("cors");
 const multer = require("multer");
 const path = require("path");
@@ -79,15 +79,18 @@ process.setMaxListeners(15);
 // rl.on('line', handleCommand);
 
 
-// console.log(process.env.mainAppPort)
+// console.log(process.env.mainAppPort)\
 
+// socket ip test for public api
+const HOST = process.env.VITE_MAIN_SOCKET_IP;
+const author = process.env.APP_AUTHOR;
 // Setup express app
 const app = express();
-const PORT = process.env.MAIN_APP_PORT;
+const PORT = process.env.VITE_MAIN_APP_PORT;
 
 // ini adalaah side server untuk viewer Bot
 const sideApp = express()
-const SPORT = process.env.VIEW_APP_PORT;
+const SPORT = process.env.VITE_MAIN_VIEW_PORT;
 
 const serverV = http.createServer(sideApp)
 // const ios = new Server(serverV, {
@@ -102,7 +105,7 @@ const ios = require('socket.io')(serverV, {
     methods: ["GET", "POST"]
   }
 });
-sideApp.use(express.json())
+// sideApp.use(express.json()) //  if any error turn it on
 
 // sideApp.use(
 //   "/:clientId/:botName/viewer/",
@@ -289,16 +292,16 @@ serverV.on("upgrade", (req, socket, head) => {
 // });
 
 let sideServerStatus = "none"
-serverV.listen(SPORT, () => {
+serverV.listen(SPORT, HOST, () => {
   // console.log(`Server running on http://localhost:${SPORT}`);
   sideServerStatus = `side Server running on http://localhost:${SPORT}`
-  // logInfo.writeLog("INFO", "side server berhasil berjalan di ", `http://localhost:${SPORT}`)
+  logInfo.getLineCode().info("INFO", "side server berhasil berjalan di ", `http://localhost:${SPORT}`)
 });
 // ### pembatas side app
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+// app.use(express.json()); // ++ ini dimatikan karena merusak logika api gateway, akan aktifkan kembali setelah menemukan solusi
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
@@ -310,7 +313,7 @@ const io = new Server(server, {
 
 
 // app.use(bodyParser.send());
-app.use(express.urlencoded({ extended: true }));
+// app.use(express.urlencoded({ extended: true }));
 
 
 // app.use("/:clientID/:botName/viewer", createProxyMiddleware({
@@ -383,6 +386,63 @@ app.use(express.urlencoded({ extended: true }));
 // // Middleware untuk file statis
 // app.use("/:clientID/:botName/viewer", express.static(__dirname + "/public"));
 
+
+
+// Hanya izinkan akses dari Main Server
+const shortEnv = process.env;
+// console.log(shortEnv.VITE_LOGIN_PORT)
+const ALLOWED_ORIGINS = ['http://localhost:3000', `http://${shortEnv.VITE_LOGIN_PORT}:${shortEnv.VITE_LOGIN_SOCKET_IP}`];
+
+// Middleware untuk mengecek apakah request berasal dari Main Server
+app.use((req, res, next) => {
+    const origin = req.headers.origin || req.headers.referer;
+    if (!ALLOWED_ORIGINS.includes(origin)) {
+        logInfo.info(`koneksi dari ${origin} mencoba terhubung ke main-server`)
+    }
+    next();
+});
+
+// Proxy ke sideServ-logic
+// app.use('/logic', createProxyMiddleware({
+//     target: 'http://localhost:3003',
+//     changeOrigin: true,
+//     pathRewrite: { '^/logic': '' },
+// }));
+
+// Proxy ke sideServ-AI
+app.use('/login', (req, res, next) => { 
+
+
+  return createProxyMiddleware({
+    target: 'http://localhost:3001',
+    changeOrigin: true,
+    // ws: true,
+    pathRewrite: { '^/login': '' },
+    timeout: 5000,       // Waktu tunggu sebelum request dianggap gagal (5 detik)
+    proxyTimeout: 5000,  // Timeout untuk proxy (5 detik)
+    onProxyReq: (proxyReq, req, res) => {
+        console.log(`[Proxy] Request to: ${req.url}`);
+    },
+    onProxyRes: (proxyRes, req, res) => {
+        if (proxyRes.headers['authorization']) {
+            console.log(`[Proxy] JWT Received`);
+        }
+    },
+    onError: (err, req, res) => {
+        console.error(`[Proxy Error]:`, err.message);
+        res.status(500).json({ message: 'Proxy Error' });
+    }
+  })(req, res, next)
+});
+
+// Proxy ke sideServ-more
+// app.use('/more', createProxyMiddleware({
+//     target: 'http://localhost:4003',
+//     changeOrigin: true,
+//     pathRewrite: { '^/more': '' },
+// }));
+
+
 // api http request response
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -416,6 +476,7 @@ app.post("/upload/userProfile", upload.single("image"), (req, res) => {
 app.use("/uploads", express.static("uploads"));
 
 // API for react control log
+app.use("/api/reactLog", express.json())
 app.post("/api/reactLog", (req, res) => {
   const { level, message } = req.body;
 
@@ -439,7 +500,7 @@ app.post("/api/reactLog", (req, res) => {
       break;
   }
 
-  res.sendStatus(200)
+  res.status(200)
 
   // console.log("log from react", `${level}: ${message}`)
 })
@@ -646,13 +707,14 @@ function checkerAllServer(type) {}
 // });
 
 
-server.listen(PORT, () => {
+server.listen(PORT, HOST, () => {
   let flags = "=====================================\n";
   flags += "== C2025 Minecraft_Arcedia Main_CT ==\n";
+  flags += `==        Made by ${author}        ===\n`
   flags += "=====================================";
   console.log(flags);
   console.log(`main Server running on http://localhost:${PORT}`);
-  // logInfo.writeLog("INFO", "main server berhasil berjalan di ", `http://localhost:${PORT}`)
+  logInfo.getLineCode().info(`main server berhasil berjalan di http://localhost:${PORT}`)
   console.log(sideServerStatus)
   // console.log()
 });
